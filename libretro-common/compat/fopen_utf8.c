@@ -85,7 +85,7 @@ void *fopen_utf8(const char * filename, const char * mode)
       if (filename_w_full[0] == '\\' && filename_w_full[1] == '\\') {
          windows_long_prefix = utf8_to_utf16_string_alloc("\\\\?\\UNC");
       }
-      /* the full path is a regular local path */
+      /* the full path is a regular local path ie '<drive-letter>:\<path>\<filename>' */
       else {
          windows_long_prefix = utf8_to_utf16_string_alloc("\\\\?\\");
       }
@@ -93,6 +93,10 @@ void *fopen_utf8(const char * filename, const char * mode)
       /* our final full, long path */
       print_format_w = utf8_to_utf16_string_alloc("%s%s");
       _snwprintf(filename_w_prefix, PATH_MAX_LENGTH, print_format_w, windows_long_prefix, filename_w_full);
+      if (windows_long_prefix)
+         free(windows_long_prefix);
+      if (print_format_w)
+         free(print_format_w);
       if (filename_w)
          free(filename_w);
       filename_w = filename_w_full;
@@ -106,10 +110,6 @@ void *fopen_utf8(const char * filename, const char * mode)
    }
    if (filename_w)
       free(filename_w);
-   if (windows_long_prefix)
-      free(windows_long_prefix);
-   if (print_format_w)
-      free(print_format_w);
    if (mode_w)
       free(mode_w);
    return ret;
