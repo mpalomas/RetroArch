@@ -80,7 +80,7 @@ void *fopen_utf8(const char * filename, const char * mode)
          return NULL;
       }
 
-      /* try to know if we are dealing with a short path */
+      /* try to know if we are dealing with a short (format) path */
       if (GetShortPathNameW(filename_w_full, filename_w_short, PATH_MAX_LENGTH)) {
          int cmp_result = wcscmp(filename_w_full, filename_w_short);
          if (cmp_result == 0) {
