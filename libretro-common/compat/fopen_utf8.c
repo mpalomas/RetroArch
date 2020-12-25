@@ -21,9 +21,13 @@
  */
 
 #include <compat/fopen_utf8.h>
+#include <retro_miscellaneous.h>
 #include <encodings/utf.h>
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef _WIN32
+#include <fileapi.h>
+#endif
 
 #if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0500 || defined(_XBOX)
 #ifndef LEGACY_WIN32
@@ -36,9 +40,19 @@
 
 void *fopen_utf8(const char * filename, const char * mode)
 {
+   wchar_t* windows_long_prefix = NULL;
+   wchar_t* filename_w = NULL;
+   wchar_t* print_format_w = NULL;
+
+   wchar_t filename_w_prefix[PATH_MAX_LENGTH];
+   wchar_t filename_w_full[PATH_MAX_LENGTH];
+   wchar_t filename_w_short[PATH_MAX_LENGTH];
+   
+   short path_length = 0;
+
 #if defined(LEGACY_WIN32)
    FILE             *ret = NULL;
-   char * filename_local = utf8_to_local_string_alloc(filename);
+   char* filename_local = utf8_to_local_string_alloc(filename);
 
    if (!filename_local)
       return NULL;
@@ -47,16 +61,71 @@ void *fopen_utf8(const char * filename, const char * mode)
       free(filename_local);
    return ret;
 #else
-   wchar_t * filename_w = utf8_to_utf16_string_alloc(filename);
+   
+#ifdef _WIN32
+   if (strlen(filename) >= MAX_PATH) {
+
+   }
+   /*
+    trick to bypass the ~260 characters limit in many Windows I/O APIs
+    http://arsenmk.blogspot.com/2015/12/handling-long-paths-on-windows.html
+   */
+
+   filename_w = utf8_to_utf16_string_alloc(filename);
+   
+   path_length = GetFullPathNameW(filename_w, 0, NULL, NULL);
+   if (path_length == 0) {
+      if (filename_w)
+         free(filename_w);
+      return NULL;
+   }
+
+   /* try get the full path from the input path */
+   if (GetFullPathNameW(filename_w, PATH_MAX_LENGTH, filename_w_full, NULL) == 0) {
+      if (filename_w)
+         free(filename_w);
+      return NULL;
+   }
+
+   /* try to know if we are dealing with a short path */
+   if (GetShortPathNameW(filename_w_full, filename_w_short, PATH_MAX_LENGTH)) {
+      int cmp_result = wcscmp(filename_w_full, filename_w_short);
+      if (cmp_result == 0) {
+         /* yes, short path => full path */
+         GetLongPathNameW(filename_w_short, filename_w_full, PATH_MAX_LENGTH);
+      }
+   }
+
+   /* the full path is a network share path ie '\\<machine-name>\<share-path>\<filename>' */
+   if (filename_w_full[0] == '\\' && filename_w_full[1] == '\\') {
+      windows_long_prefix = utf8_to_utf16_string_alloc("\\\\?\\UNC");
+   }
+   /* the full path is a regular local path */
+   else {
+      windows_long_prefix = utf8_to_utf16_string_alloc("\\\\?\\");
+   }
+
+   /* our final full, long path */
+   print_format_w = utf8_to_utf16_string_alloc("%s%s");
+   _snwprintf(filename_w_prefix, PATH_MAX_LENGTH, print_format_w, windows_long_prefix, filename_w_full);
+   
+#endif
+
    wchar_t * mode_w = utf8_to_utf16_string_alloc(mode);
    FILE* ret = NULL;
 
-   if (filename_w && mode_w)
-      ret = _wfopen(filename_w, mode_w);
+   if (filename_w_prefix && mode_w) {
+      ret = _wfopen(filename_w_prefix, mode_w);
+   }
    if (filename_w)
       free(filename_w);
+   if (windows_long_prefix)
+      free(windows_long_prefix);
+   if (print_format_w)
+      free(print_format_w);
    if (mode_w)
       free(mode_w);
+   
    return ret;
 #endif
 }
