@@ -57,7 +57,6 @@ void *fopen_utf8(const char * filename, const char * mode)
    wchar_t filename_w_full[PATH_MAX_LENGTH];
    wchar_t filename_w_short[PATH_MAX_LENGTH];
 
-   short path_length = 0;
    filename_w = utf8_to_utf16_string_alloc(filename);
 
    if (strlen(filename) >= MAX_PATH) {
@@ -65,13 +64,6 @@ void *fopen_utf8(const char * filename, const char * mode)
        trick to bypass the ~260 characters limit in many Windows I/O APIs
        http://arsenmk.blogspot.com/2015/12/handling-long-paths-on-windows.html
       */
-
-      path_length = GetFullPathNameW(filename_w, 0, NULL, NULL);
-      if (path_length == 0) {
-         if (filename_w)
-            free(filename_w);
-         return NULL;
-      }
 
       /* try get the full path from the input path */
       if (GetFullPathNameW(filename_w, PATH_MAX_LENGTH, filename_w_full, NULL) == 0) {
